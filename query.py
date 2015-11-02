@@ -19,6 +19,20 @@ def read_queries(query_file):
 				queries[queryID]=query
 				queryID='EMPTY'
 				query=""
+	return queries
+
+def query_lexicon(query):
+	terms = preprocess.processing(query, 'single')
+	query_terms = {}
+
+	for idx, term in enumerate(query_terms):
+		if term in query_terms:
+			query_terms[term] += 1
+		else:
+			query_terms[term] = 1
+	print query_terms
+	return query_terms
+
 
 def build_document_index(index):
 	"""This function builds diction of {docID: [terms in doc]}"""
@@ -33,11 +47,10 @@ def build_document_index(index):
 	return terms_by_document
 
 
-def VSM_Score(query, index, term_list, terms_by_doc):
+def VSM_Score(query, index, term_list, terms_by_doc, terms_idf):
 	vsm_score = {}
 	query_term_posting_list = []
 
-	terms_idf=VSM_idf(term_list)
 	document_lengths = {}
 
 	for term in query:
@@ -47,14 +60,14 @@ def VSM_Score(query, index, term_list, terms_by_doc):
 			document_length, document_all_term_weights=VSM_document_length(terms_by_doc, terms_idf, index, docID)
 			document_lengths[docID] = document_length
 			if docID in vsm_score:
-				vsm_score[docID] += document_all_term_weights[term] * #weight of query term 
+				vsm_score[docID] += document_all_term_weights[term] #* fh#weight of query term 
 			else:
-				vsm_score[docID] = document_all_term_weights[term] * #weight of query term 
+				vsm_score[docID] = document_all_term_weights[term] #* fh #weight of query term 
 
 	for docID in vsm_score:
-		vsm_score[docID] = vsm_score[docID] / sqrt(pow(document_length, 2)*#length of the query)
+		vsm_score[docID] = vsm_score[docID] / sqrt(pow(document_length, 2))#*fj#length of the query)
 
-
+	print hello
 
 def VSM_document_length(terms_by_doc, term_idf, index, docID):
 	"""This function build the document length for a specific document and

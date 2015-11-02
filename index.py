@@ -5,42 +5,51 @@ import heapq
 import time
 import statistics
 
-memory_constraint=1000
+memory_constraint=0
 term_dict={}
 lexicon={}
 count=0
 
 
-def iterate_through_folder(folderPath, input_files, out_path, out_terms, indexType):
+def iterate_through_folder(folderPath, input_files, out_path, out_terms, indexType, memory):
 	"""This method iterates through the files in the folder, sends them
 	to the document iterator, and then handles the final temp writing and merging."""
 
 	start_time = time.time()
+	merge_time=0
+
+	global memory_constraint
+	memory_constraint=memory
+
 	temp_files = []
 
 	for filename in input_files:
 		temp_files = iterate_through_files(temp_files, folderPath, filename, indexType)
 
-	if not temp_files:
+	if not temp_files and memory_constraint != 0:
 		if indexType == 'positional':
 			write_to_file_position(out_path)
 		else:
 			write_to_file(out_path)
 		merge_time = 0
-		end_time = time.time()
-	else:
+	elif temp_files and memory_constraint != 0:
 		if indexType == 'positional':
 			temp_files = write_to_temp_position(temp_files)
 		else:
 			temp_files = write_to_temp(temp_files)
 		merge_time = time.time()
 		merge_temps(temp_files, out_path)
-		end_time = time.time()
+
+	end_time=time.time()
 
 	numT, maxT,minT,meanT, medianT = calculate_term_list()
-	write_term_list(out_terms)
 
 	time_results(start_time, merge_time, end_time, numT, maxT,minT,meanT, medianT, indexType)
+
+	if memory_constraint == 0:
+		return term_dict, lexicon
+	else:
+		write_term_list(out_terms)
 
 
 def iterate_through_files(temp_files, folder, singleFile, indexType):
@@ -101,7 +110,7 @@ def build_positional_index(temp_files, document, docID):
 	global count
 	global memory_constraint
 
-	if count > memory_constraint:
+	if count > memory_constraint and memory_constraint != 0:
 		temp_files = write_to_temp_position(temp_files)
 		count = 0
 	return temp_files
@@ -113,7 +122,7 @@ def check_mem_constraint(temp_files):
 	global count
 	global memory_constraint
 
-	if count > memory_constraint:
+	if count > memory_constraint and memory_constraint != 0:
 		temp_files = write_to_temp(temp_files)
 		count = 0
 	return temp_files
