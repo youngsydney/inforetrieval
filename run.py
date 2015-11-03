@@ -34,22 +34,40 @@ if __name__ == "__main__":
 
 	print ("\nTotal Time of Execution for Index Construction: " + str(end_time - start_time) + '\n')
 
-	#Here read in the query file and begin the query processing 
-	terms_by_doc = query_process.build_document_index(lexicon)
-	terms_idf = query_process.VSM_idf(term_list)
+
+
 
 	queries = query_process.read_queries("queryfile.txt")
 
 	with open("results.txt", 'w') as resultsFile:
 		for queryID in sorted(queries):
-			vsm_score={}
+			bm25_score = {}
 			query_terms = query_process.query_lexicon(queries[queryID])
 
-			vsm_score = query_process.VSM_Score(query_terms, lexicon, term_list, terms_by_doc, terms_idf)
-			sorted_scores = OrderedDict(sorted(vsm_score.items(), key=itemgetter(1), reverse=True))
+			bm25_score = query_process.BM25_Score(query_terms, lexicon, term_list)
+			sorted_scores = OrderedDict(sorted(bm25_score.items(), key=itemgetter(1), reverse=True))
 			for idx, doc in enumerate(sorted_scores):
 				if idx<100:
-					resultsFile.write(queryID + ' ' + '0 ' + doc + ' ' + str(idx) + ' ' + str(sorted_scores[doc]) + ' ' + 'COSINE\n')
+					resultsFile.write(queryID + ' ' + '0 ' + doc + ' ' + str(idx+1) + ' ' + str(sorted_scores[doc]) + ' ' + 'BM25\n')
+
+
+
+	#Here read in the query file and begin the query processing 
+	#terms_by_doc, num_docs = query_process.build_document_index(lexicon)
+	#terms_idf = query_process.VSM_idf(term_list, num_docs)
+
+	#queries = query_process.read_queries("queryfile.txt")
+
+	#with open("results.txt", 'w') as resultsFile:
+	#	for queryID in sorted(queries):
+	#		vsm_score={}
+	#		query_terms = query_process.query_lexicon(queries[queryID])
+	#
+	#		vsm_score = query_process.VSM_Score(query_terms, lexicon, term_list, terms_by_doc, terms_idf)
+	#		sorted_scores = OrderedDict(sorted(vsm_score.items(), key=itemgetter(1), reverse=True))
+	#		for idx, doc in enumerate(sorted_scores):
+	#			if idx<100:
+	#				resultsFile.write(queryID + ' ' + '0 ' + doc + ' ' + str(idx+1) + ' ' + str(sorted_scores[doc]) + ' ' + 'COSINE\n')
 
 
 
