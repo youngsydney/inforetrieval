@@ -1,6 +1,50 @@
 import preprocess
 import math
 
+
+def query_input(query_file):
+	queryID = 'EMPTY'
+	title = ''
+	desc = ''
+	narr = ''
+	nextLine = ''
+	add = ''
+	queries = {}
+
+	with open(query_file, 'r') as queryFile:
+		for line in queryFile:
+			if queryID == 'EMPTY' and "<num>" in line:
+				queryID=line.replace('<num> Number: ', '')
+				queryID=queryID.replace('\n','')
+			elif title == '' and "<title>" in line:
+				title=line.replace('<title> Topic:', '')
+				title=title.replace('\n', '')
+			elif desc == '' and nextLine == '':
+				nextLine = 'desc'
+			elif nextLine == 'desc':
+				if "<narr>" in line:
+					nextLine = 'narr'
+				else:
+					add = line.replace('<desc> Description:', '')
+					add = add.replace('\n',' ')
+					desc += add
+					add = ''
+			elif nextLine == 'narr':
+				if "<top>" in line:
+					queries[queryID] = {"title":title, "desc":desc, "narr":narr}
+					queryID = 'EMPTY'
+					title = ''
+					desc = ''
+					narr = ''
+					nextLine = ''
+				else:
+					add = line.replace('\n',' ')
+					add = add.replace('</top>', ' ')
+					narr += add
+					add = ''
+	return queries
+
+
 def read_queries(query_file):
 	"""This function reads the query file and 
 	stores the query idea and query as a dictionary."""
@@ -21,8 +65,8 @@ def read_queries(query_file):
 				query=""
 	return queries
 
-def query_lexicon(query):
-	terms = preprocess.processing(query, 'single')
+def query_lexicon(query, index_type):
+	terms = preprocess.processing(query, index_type)
 	query_terms = {}
 
 	for term in terms:
@@ -64,10 +108,13 @@ def VSM_idf(term_list, num_docs):
 	return terms_idf
 
 
-def VSM_Score(query_terms, index, term_list, terms_by_doc, terms_idf):
+def VSM_Score(query_terms, index, term_list):
 	#will be a dictionary of {docID:score, docID:score}
 	vsm_score = {}
 	dict_term_weights = {}
+
+	terms_by_doc, num_docs = build_document_index(index)
+	terms_idf = VSM_idf(term_list, num_docs)
 
 	query_termWeights = VSM_query_termWeight(terms_idf, index, query_terms)
 
@@ -177,11 +224,12 @@ def build_BM25_document_lengths(index):
 
 	return document_lengths, average_length, num_docs
 
-def BM25_Score(query_terms, index, term_list):
+def BM25_Score(query_terms, index, term_list, queryID):
 
 	bm25_score = {}
 	k1 = 1.2
 	k2 = 1000
+	#check query by query to update the constants, should change on a query by query basis
 	b = 0.75
 
 	document_lengths, average_length, num_docs = build_BM25_document_lengths(index)
@@ -200,6 +248,78 @@ def BM25_Score(query_terms, index, term_list):
 					bm25_score[docID] += term_weight * A * B 
 		else:
 			print term
+			print queryID
 
 	return bm25_score
+
+
+"""THIS IS THE SECTION WHICH HANDLES QUERY PROCESSING FOR Dirichlet Smoothing"""
+
+def Dirichlet_Score(query_terms, index):
+
+	dirichlet_score = {}
+	doc_numerator_value = 0 
+	doc_denominator_value = 0
+	average_length = 0
+	# |C| num terms in the entire collection 
+
+	document_lengths, average_length, collection_length = build_Dirichlet_doc_collection_length(index)
+	tf_collection = build_tf_in_collection(index)
+
+	for term in query_terms:
+		if term in index: 
+			query_term_posting_list = index[term]
+			for docID in query_term_posting_list:
+				numerator = index[term][docID] + (average_length + (float(tf_collection[term]) / collection_length))
+				denominator = document_lengths[docID] + average_length
+
+				if docID not in dirichlet_score:
+					dirichlet_score[docID] = math.log((float(numerator) / denominator))
+				else:
+					dirichlet_score[docID] += math.log((float(numerator) / denominator))
+		else:
+			print term
+
+	return dirichlet_score
+
+
+def build_Dirichlet_doc_collection_length(index):
+	
+	collection_length = 0
+	num_docs = 0
+	document_lengths = {}
+
+	for term in index:
+		for docID in index[term]:
+			collection_length += index[term][docID]
+			if docID in document_lengths:
+				document_lengths[docID] += index[term][docID]
+			else:
+				document_lengths[docID] = index[term][docID]
+				num_docs += 1
+	average_length = float(collection_length) / num_docs
+
+	return document_lengths, average_length, collection_length
+
+def build_tf_in_collection(index):
+	tf_collection = {}
+
+	for term in index:
+		for docID in index[term]:
+			if term in tf_collection:
+				tf_collection[term] += index[term][docID]
+			else:
+				tf_collection[term] = index[term][docID]
+
+	return tf_collection
+
+
+
+
+
+
+
+
+
+
 

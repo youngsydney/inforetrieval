@@ -3,6 +3,22 @@ import query_process
 import preprocess
 import index
 
+def AllTests():
+	suite = unittest.TestSuite([PreProcessSuite, VSMQuerySuite, BM25QuerySuite])
+
+def PreProcessSuite(unittest.TestSuite):
+	suite = unittest.TestLoader().loadTestsFromTestCase(PreprocessUnitTests)
+	return suite
+
+def VSMQuerySuite(unittest.TestSuite):
+	suite = unittest.TestLoader().loadTestsFromTestCase(QueryVSMUnitTests)
+	return suite
+
+def BM25QuerySuite(unittest.TestSuite):
+	suite = unittest.TestLoader().loadTestsFromTestCase(QueryBM25UnitTests)
+	return suite
+
+
 class PreprocessUnitTests(unittest.TestCase):
 	def setUp(self):
 		pass
@@ -38,6 +54,10 @@ class PreprocessUnitTests(unittest.TestCase):
 		self.assertEqual(preprocess.currency('$67.000', 'single'), '$67')
 		self.assertEqual(preprocess.currency('$67.', 'single'), '$67')
 
+
+
+
+
 class QueryVSMUnitTests(unittest.TestCase):
 	def setUp(self):
 		pass
@@ -54,4 +74,12 @@ class QueryBM25UnitTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+   # unittest.main()
+	unittest.TextTestRunner(verbosity=2).run(AllTests())
+
+
+
+
+
+
+
