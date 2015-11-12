@@ -11,7 +11,7 @@ lexicon={}
 count=0
 
 
-def iterate_through_folder(folderPath, input_files, out_path, out_terms, indexType, memory):
+def iterate_through_folder(folderPath, input_files, out_path, out_terms, indexType, memory, data_p1r1):
 	"""This method iterates through the files in the folder, sends them
 	to the document iterator, and then handles the final temp writing and merging."""
 
@@ -20,6 +20,12 @@ def iterate_through_folder(folderPath, input_files, out_path, out_terms, indexTy
 
 	global memory_constraint
 	memory_constraint=memory
+	global lexicon 
+	lexicon = {}
+	global term_dict
+	term_dict = {}
+	global count 
+	count = 0
 
 	temp_files = []
 
@@ -43,11 +49,10 @@ def iterate_through_folder(folderPath, input_files, out_path, out_terms, indexTy
 	end_time=time.time()
 
 	numT, maxT,minT,meanT, medianT = calculate_term_list()
-
-	time_results(start_time, merge_time, end_time, numT, maxT,minT,meanT, medianT, indexType)
+	data_p1r1[indexType] = {'lexicon': numT, 'size': 0, 'max_df': maxT, 'min_df': minT, 'mean_df': meanT, 'median_df': medianT, 'time': (end_time-start_time)}
 
 	if memory_constraint == 0:
-		return term_dict, lexicon
+		return term_dict, lexicon, data_p1r1
 	else:
 		write_term_list(out_terms)
 

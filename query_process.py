@@ -93,6 +93,29 @@ def build_document_index(index):
 	return terms_by_document, num_docs
 
 
+def makeDecision(query_terms, p_term_list):
+	index_decision = ''
+
+	sum_df = 0
+	num_phrases = 0
+
+	for phrase in query_terms:
+		if phrase in p_term_list:
+			sum_df += p_term_list[phrase]
+			num_phrases += 1
+
+	if num_phrases == 0 or sum_df == 0:
+		return 'positional'
+	else:	
+		average_df = float(sum_df) / num_phrases
+
+	if average_df > 1:
+		index_decision = 'phrase'
+	else:
+		index_decision = 'positional'
+
+	return index_decision 
+
 
 """THIS IS THE SECTION WHICH HANDLES QUERY PROCESSING FOR VSM COSINE"""
 
@@ -130,7 +153,8 @@ def VSM_Score(query_terms, index, term_list):
 				else:
 					vsm_score[docID] += query_termWeights[term] * dict_term_weights[docID][term]
 		else:
-			print term
+			pass
+			#print term
 
 	for docID in vsm_score:
 		vsm_score[docID] = vsm_score[docID] / math.sqrt(pow(VSM_sum_termWeights_doc(dict_term_weights, docID),2)*pow(VSM_sum_termWeights_query(query_termWeights), 2))
@@ -224,16 +248,43 @@ def build_BM25_document_lengths(index):
 
 	return document_lengths, average_length, num_docs
 
-def BM25_Score(query_terms, index, term_list, queryID):
+def BM25_Score(query_terms, index, term_list, queryID, score, indexType):
 
-	bm25_score = {}
+	if indexType == 'positional':
+		score = BM25_Score_Positional(query_terms, index, term_list, queryID, score)
+		return score
 	k1 = 1.2
 	k2 = 1000
-	#check query by query to update the constants, should change on a query by query basis
+	#check query by query to update the constants, should change on a query by query basis?????
 	b = 0.75
 
 	document_lengths, average_length, num_docs = build_BM25_document_lengths(index)
+	for term in query_terms:
+		if term in index:
+			term_weight = BM25_weight(term_list, term, num_docs)
+			B = ((k2 + 1) * query_terms[term]) / (k2 + query_terms[term])
+			query_term_posting_list = index[term]
 
+			for docID in query_term_posting_list:
+				A = ((k1 + 1) * len(index[term][docID])) / (len(index[term][docID]) + k1 * (1 - b + b * (document_lengths[docID] / average_length)))
+				if docID not in score:
+					score[docID] = term_weight * A * B 
+				else:
+					score[docID] += term_weight * A * B 
+		else:
+			#print term
+			#print queryID
+			pass
+
+	return score
+
+def BM25_Score_Positional(query_terms, index, term_list, queryID, score):
+	"""ASK PROFESSOR"""
+	k1 = 1.2
+	k2 = 1000
+	b = 0.75
+
+	document_lengths, average_length, num_docs = build_BM25_document_lengths(index)
 	for term in query_terms:
 		if term in index:
 			term_weight = BM25_weight(term_list, term, num_docs)
@@ -242,15 +293,17 @@ def BM25_Score(query_terms, index, term_list, queryID):
 
 			for docID in query_term_posting_list:
 				A = ((k1 + 1) * index[term][docID]) / (index[term][docID] + k1 * (1 - b + b * (document_lengths[docID] / average_length)))
-				if docID not in bm25_score:
-					bm25_score[docID] = term_weight * A * B 
+				if docID not in score:
+					score[docID] = term_weight * A * B 
 				else:
-					bm25_score[docID] += term_weight * A * B 
+					score[docID] += term_weight * A * B 
 		else:
-			print term
-			print queryID
+			#print term
+			#print queryID
+			pass
 
-	return bm25_score
+	
+	return score
 
 
 """THIS IS THE SECTION WHICH HANDLES QUERY PROCESSING FOR Dirichlet Smoothing"""
@@ -270,6 +323,7 @@ def Dirichlet_Score(query_terms, index):
 		if term in index: 
 			query_term_posting_list = index[term]
 			for docID in query_term_posting_list:
+
 				numerator = index[term][docID] + (average_length + (float(tf_collection[term]) / collection_length))
 				denominator = document_lengths[docID] + average_length
 
@@ -278,7 +332,8 @@ def Dirichlet_Score(query_terms, index):
 				else:
 					dirichlet_score[docID] += math.log((float(numerator) / denominator))
 		else:
-			print term
+			#print term
+			pass
 
 	return dirichlet_score
 

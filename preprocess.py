@@ -368,25 +368,42 @@ def stem_terms(tokens):
 def build_phrases(tokens):
 	stopWords = make_list_stops()
 	special_case = 'STOP'
-	string = ''
+	string_2 = ''
+	string_3 = ''
 	num_terms = 0
 	phrases = []
 
 	for idx, word in enumerate(tokens):
-		if num_terms >= 3:
-			phrases.append(string)
-			string = ''
-			num_terms=0
-		elif word not in stopWords and word.find(special_case) == -1:
-			string += word + ' '
+		if word not in stopWords and 'STOP' not in word:
+			if num_terms == 0:
+				string_2 += word
+			elif num_terms ==1:
+				string_2 += ' ' + word
+			elif num_terms == 2:
+				string_2 += ' ' + word
+				string_3 += ' ' + word 
 			num_terms+=1
-		elif word in stopWords or word.find(special_case) != -1:
+		elif word in stopWords or 'STOP' in word:
 			if num_terms == 1:
-				string = ''
+				string_2 = ''
 				num_terms = 0
 			elif num_terms == 2:
-				phrases.append(string)
-				string = ''
+				phrases.append(string_2)
+				string_2 = ''
 				num_terms = 0
+
+		if num_terms == 2:
+			phrases.append(string_2)
+			string_3 = string_2
+			string_2 = string_2.split(' ')[1]
+			num_terms = 2
+		elif num_terms == 3:
+			phrases.append(string_3)
+			phrases.append(string_2)
+			string_3 = ''
+			string_2 = string_2.split(' ')[1]
+			num_terms = 1
+	if ' ' in string_2:
+		phrases.append(string_2)
 	return phrases
 
