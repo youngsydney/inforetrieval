@@ -19,3 +19,6 @@ Notes about processing:
 	For the phrase index, special cases get replaced with " STOP " so during the phrase identification stage the phrases can't cross over special cases.
 	For the cases of hyphenated words, I merged the word (black-tie became blacktime) and only stored the combined in the positional index. 
 
+Testing the Query Size:
+	If you would like to test the effect of the query length on MAP, you can look at line ____ in run.py, change 'title' to 'desc' or 'narr' 
+	to see how the results change depending on the length of the query.

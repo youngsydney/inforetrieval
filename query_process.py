@@ -6,8 +6,11 @@ from operator import itemgetter
 import commands
 from texttable import Texttable
 
-def report_1(s_lexicon, s_term_list, st_lexicon, st_term_list, queries):
-	types = {'dirichlet', 'bm25', 'vsm'}
+def report_1(s_lexicon, s_term_list, st_lexicon, st_term_list, queries, query_start):
+	"""This report runs processing of the queries against the BM25, 
+	dirichlet, and VSM models."""
+
+	types = {'bm25', 'vsm', 'dirichlet'}
 	data_r1 = {'vsm':{'S_MAP':'', 'S_QPT': '', 'ST_MAP': '', 'ST_QPT': ''}, 'bm25':{'MAP':'', 'QPT': '', 'ST_MAP': '', 'ST_QPT': ''}, 'dirichlet':{'MAP':'', 'QPT': '', 'ST_MAP': '', 'ST_QPT': ''}}
 	report1_indexes = ['single', 'stem']
 
@@ -52,9 +55,12 @@ def report_1(s_lexicon, s_term_list, st_lexicon, st_term_list, queries):
 					data_r1[processing_type]['S_MAP'] = "error"
 				elif index_type == 'stem':
 					data_r1[processing_type]['ST_MAP'] = "error"
+		score.clear()
 	return data_r1
 
 def print_results1(data_r1):
+	"""This function prints the result of report 1 analysis."""
+
 	t_p2r1 = Texttable()
 	t_p2r1.add_row(['REPORT 1', '-', '-', '-', '-'])
 	t_p2r1.add_row(['-', 'SINGLE', '-', 'STEM', '-'])
@@ -64,11 +70,13 @@ def print_results1(data_r1):
 	t_p2r1.add_row(['dirichlet', data_r1['dirichlet']['S_MAP'], data_r1['dirichlet']['S_QPT'], data_r1['dirichlet']['ST_MAP'], data_r1['dirichlet']['ST_QPT']])
 	print t_p2r1.draw()
 
-def report_2(st_lexicon, st_term_list, p_lexicon, p_term_list, po_lexicon, po_term_list, queries):
+def report_2(st_lexicon, st_term_list, p_lexicon, p_term_list, po_lexicon, po_term_list, queries, query_start):
+	"""This report runs report 2 -- first sending against the phrase or positional index 
+	and then sending against the stem if not enough documents found."""
+
 	data_r2 = {'bm25':{'P_MAP':'', 'P_QPT': ''}}
 	index_count = {'phrase': 0, 'positional': 0}
 
-	query_start = time.time()
 	with open("results.txt", 'w') as resultsFile:
 		for queryID in sorted(queries):
 			query_terms = query_lexicon(queries[queryID], 'phrase')
@@ -89,18 +97,18 @@ def report_2(st_lexicon, st_term_list, p_lexicon, p_term_list, po_lexicon, po_te
 			for idx, doc in enumerate(sorted_scores):
 				if idx<100:
 					resultsFile.write(queryID + ' ' + '0 ' + doc + ' ' + str(idx+1) + ' ' + str(sorted_scores[doc]) + ' ' + 'phrase_stem '  + '\n')
-			query_count += 1
 	query_end = time.time()
 	data_r2['bm25']['P_QPT'] = str(query_end-query_start)
 	status, output = commands.getstatusoutput("./trec_eval -m map ~/Documents/searchengine/qrel.txt ~/Documents/searchengine/results.txt")
 	output = output.replace ('\t', ' ')
 	MAP_number = output.split('all ')[1]
 	data_r2['bm25']['P_MAP'] = MAP_number
-	data_r2['bm25']['P_AQPT'] = (query_end-query_start) / query_count
 
 	return index_count, data_r2
 
 def print_results2(data_r2, index_count):
+	"""This report prints the result of Report 2 processing."""
+
 	print ('\n'+str(index_count['phrase']) + " queries processed against phrase index.")
 	print (str(index_count['positional']) + " queries processed against positional index.")
 	t_p2r2 = Texttable()
@@ -140,40 +148,20 @@ def query_input(query_file):
 					desc += add
 					add = ''
 			elif nextLine == 'narr':
-				if "<top>" in line:
+				if "</top>" in line:
+					add = line.replace('\n',' ')
+					add = add.replace('</top>', ' ')
 					queries[queryID] = {"title":title, "desc":desc, "narr":narr}
 					queryID = 'EMPTY'
 					title = ''
 					desc = ''
 					narr = ''
 					nextLine = ''
+					add = ''
 				else:
 					add = line.replace('\n',' ')
-					add = add.replace('</top>', ' ')
 					narr += add
 					add = ''
-	return queries
-
-
-def read_queries(query_file):
-	"""This function reads the query file and 
-	stores the query id and query as a dictionary."""
-
-	queryID='EMPTY'
-	query=""
-	queries={}
-
-	with open(query_file, 'r') as queryFile:
-		for line in queryFile:
-			if "<num>" in line:
-				queryID=line.replace('<num> Number: ', '')
-				queryID=queryID.replace('\n','')
-			elif queryID!='EMPTY':
-				query=line.replace('<title> Topic:', '')
-				query=query.replace('\n', '')
-				queries[queryID]=query
-				queryID='EMPTY'
-				query=""
 	return queries
 
 def query_lexicon(query, index_type):
@@ -237,16 +225,6 @@ def makeDecision(query_terms, p_term_list):
 
 """THIS IS THE SECTION WHICH HANDLES QUERY PROCESSING FOR VSM COSINE"""
 
-def VSM_idf(term_list, num_docs):
-	"""This function precalculates all the term idfs."""
-
-	terms_idf={}
-	for term in term_list:
-		terms_idf[term]=math.log10((float(num_docs)/term_list[term]))
-
-	return terms_idf
-
-
 def VSM_Score(query_terms, index, term_list):
 	"""The main driver function for the VSM COSINE
 	retrieval model. Builds the dictionary of scores."""
@@ -266,19 +244,28 @@ def VSM_Score(query_terms, index, term_list):
 			for docID in query_term_posting_list:
 				if docID not in dict_term_weights:
 					dict_term_weights = VSM_termWeight(docID, terms_idf, index, terms_by_doc[docID], dict_term_weights)
+
 				if docID not in vsm_score:
 					vsm_score[docID] = query_termWeights[term] * dict_term_weights[docID][term]
 				else:
 					vsm_score[docID] += query_termWeights[term] * dict_term_weights[docID][term]
 		else:
 			pass
-			#print term
 
 	for docID in vsm_score:
 		vsm_score[docID] = vsm_score[docID] / math.sqrt(pow(VSM_sum_termWeights_doc(dict_term_weights, docID),2)*pow(VSM_sum_termWeights_query(query_termWeights), 2))
 
 	return vsm_score
 
+
+def VSM_idf(term_list, num_docs):
+	"""This function precalculates all the term idfs."""
+
+	terms_idf={}
+	for term in term_list:
+		terms_idf[term]=math.log10((float(num_docs)/term_list[term]))
+
+	return terms_idf
 
 
 def VSM_termWeight_numerator(term_idf, termFreq):
@@ -318,7 +305,8 @@ def VSM_sum_termWeights_doc(dict_term_weights, docID):
 	return sum_weights
 
 def VSM_sum_termWeights_query(query_termWeights):
-	
+	"""This is the sum of the term weights in the query."""
+
 	sum_weights=0
 	for term in query_termWeights:
 		sum_weights += query_termWeights[term]
@@ -326,7 +314,9 @@ def VSM_sum_termWeights_query(query_termWeights):
 	return sum_weights
 
 def VSM_query_termWeight(terms_idf, index, query_terms):
-	
+	"""This is the function that builds the term weights
+	of the query terms."""
+
 	sum_termWeights_query = 0
 	dict_query_termWeights = {}
 
@@ -347,6 +337,64 @@ def VSM_query_termWeight(terms_idf, index, query_terms):
 
 """THIS IS THE SECTION WHICH HANDLES QUERY PROCESSING FOR BM-25"""
 
+def BM25_Score(query_terms, index, term_list, queryID, score, indexType):
+	"""This is the main function which produces the BM25 score."""
+
+	if indexType == 'positional':
+		score = BM25_Score_Positional(query_terms, index, term_list, queryID, score)
+		return score
+	k1 = 1.2
+	k2 = 1000
+	b = 0.75
+
+	document_lengths, average_length, num_docs = build_BM25_document_lengths(index)
+	for term in query_terms:
+		if term in index:
+			term_weight = BM25_weight(term_list, term, num_docs)
+			B = ((k2 + 1) * query_terms[term]) / float(k2 + query_terms[term])
+			query_term_posting_list = index[term]
+
+			for docID in query_term_posting_list:
+				A = ((k1 + 1) * index[term][docID]) / float(index[term][docID] + k1 * (1 - b + b * (document_lengths[docID] / average_length)))
+				if docID not in score:
+					score[docID] = term_weight * A * B 
+				else:
+					score[docID] += term_weight * A * B 
+		else:
+			pass
+
+	return score
+
+
+def BM25_Score_Positional(query_terms, index, term_list, queryID, score):
+	"""This is the BM25 for the positional index, as the positional
+	does not have tf but the positions stored so has to 
+	be processed slightly differently."""
+
+	k1 = 1.2
+	k2 = 500
+	b = 0.75
+
+	document_lengths, average_length, num_docs = build_BM25_document_lengths(index)
+	for term in query_terms:
+		if term in index:
+			term_weight = BM25_weight(term_list, term, num_docs)
+			B = ((k2 + 1) * query_terms[term]) / float(k2 + query_terms[term])
+			query_term_posting_list = index[term]
+
+			for docID in query_term_posting_list:
+				A = ((k1 + 1) * len(index[term][docID])) / float(len(index[term][docID]) + k1 * (1 - b + b * (document_lengths[docID] / average_length)))
+				if docID not in score:
+					score[docID] = term_weight * A * B 
+				else:
+					score[docID] += term_weight * A * B 
+		else:
+			pass
+
+	
+	return score
+
+
 def BM25_weight(term_list, term, num_docs):
 	"""This function precalculates all the term idfs, which for BM-25 
 	is the weight of the term."""
@@ -358,6 +406,7 @@ def BM25_weight(term_list, term, num_docs):
 
 def build_BM25_document_lengths(index):
 	"""This function builds diction of {docID: num_terms_in_doc}"""
+
 	sum_doc_lengths = 0
 	num_docs = 0
 	document_lengths = {}
@@ -374,98 +423,48 @@ def build_BM25_document_lengths(index):
 
 	return document_lengths, average_length, num_docs
 
-def BM25_Score(query_terms, index, term_list, queryID, score, indexType):
-
-	if indexType == 'positional':
-		score = BM25_Score_Positional(query_terms, index, term_list, queryID, score)
-		return score
-	k1 = 1.2
-	k2 = 1000
-	#check query by query to update the constants, should change on a query by query basis?????
-	b = 0.75
-
-	document_lengths, average_length, num_docs = build_BM25_document_lengths(index)
-	for term in query_terms:
-		if term in index:
-			term_weight = BM25_weight(term_list, term, num_docs)
-			B = ((k2 + 1) * query_terms[term]) / (k2 + query_terms[term])
-			query_term_posting_list = index[term]
-
-			for docID in query_term_posting_list:
-				A = ((k1 + 1) * index[term][docID]) / (index[term][docID] + k1 * (1 - b + b * (document_lengths[docID] / average_length)))
-				if docID not in score:
-					score[docID] = term_weight * A * B 
-				else:
-					score[docID] += term_weight * A * B 
-		else:
-			#print term
-			#print queryID
-			pass
-
-	return score
-
-def BM25_Score_Positional(query_terms, index, term_list, queryID, score):
-	"""ASK PROFESSOR"""
-	k1 = 1.2
-	k2 = 1000
-	b = 0.75
-
-	document_lengths, average_length, num_docs = build_BM25_document_lengths(index)
-	for term in query_terms:
-		if term in index:
-			term_weight = BM25_weight(term_list, term, num_docs)
-			B = ((k2 + 1) * query_terms[term]) / (k2 + query_terms[term])
-			query_term_posting_list = index[term]
-
-			for docID in query_term_posting_list:
-				A = ((k1 + 1) * len(index[term][docID])) / (len(index[term][docID]) + k1 * (1 - b + b * (document_lengths[docID] / average_length)))
-				if docID not in score:
-					score[docID] = term_weight * A * B 
-				else:
-					score[docID] += term_weight * A * B 
-		else:
-			#print term
-			#print queryID
-			pass
-
-	
-	return score
 
 
 """THIS IS THE SECTION WHICH HANDLES QUERY PROCESSING FOR Dirichlet Smoothing"""
 
 def Dirichlet_Score(query_terms, index):
+	"""This is the function which produces
+	the Dirichlet score."""
 
 	dirichlet_score = {}
 	doc_numerator_value = 0 
 	doc_denominator_value = 0
-	average_length = 0
+	miu = 0
 	# |C| num terms in the entire collection 
 
 	document_lengths, average_length, collection_length = build_Dirichlet_doc_collection_length(index)
 	tf_collection = build_tf_in_collection(index)
+	miu = 500
 
 	for term in query_terms:
 		if term in index: 
 			query_term_posting_list = index[term]
 			for docID in query_term_posting_list:
 
-				numerator = index[term][docID] + (average_length + (float(tf_collection[term]) / collection_length))
-				denominator = document_lengths[docID] + average_length
+				numerator = index[term][docID] + ((miu * float(tf_collection[term])) / collection_length)
+				denominator = document_lengths[docID] + miu 
 
 				if docID not in dirichlet_score:
-					dirichlet_score[docID] = math.log((float(numerator) / denominator))
+					#dirichlet_score[docID] = math.log((float(numerator) / denominator))
+					dirichlet_score[docID] = (float(numerator) / denominator)
 				else:
-					dirichlet_score[docID] += math.log((float(numerator) / denominator))
+					#dirichlet_score[docID] += math.log((float(numerator) / denominator))
+					dirichlet_score[docID] = (float(numerator) / denominator)
 		else:
-			#print term
 			pass
 
 	return dirichlet_score
 
 
 def build_Dirichlet_doc_collection_length(index):
-	
+	"""This function builds the document 
+	lengths for all the documents in the collection."""
+
 	collection_length = 0
 	num_docs = 0
 	document_lengths = {}
@@ -483,6 +482,9 @@ def build_Dirichlet_doc_collection_length(index):
 	return document_lengths, average_length, collection_length
 
 def build_tf_in_collection(index):
+	"""This function builds the collection 
+	frequency for all the terms in the collection. """
+
 	tf_collection = {}
 
 	for term in index:

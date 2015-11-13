@@ -46,9 +46,13 @@ if __name__ == "__main__":
 	"""THIS IS THE SECTION WHICH PROCESSES THE QUERIES."""
 
 	print ('\nQuery Processing')
-	queries = query_process.read_queries("queryfile.txt")
+	query_start = time.time()
+	all_queries =  query_process.query_input("queryfile.txt")
+	queries = {}
+	for queryID in all_queries:
+		queries[queryID] = all_queries[queryID]['title']
 
-	data_r1 = query_process.report_1(s_lexicon, s_term_list, st_lexicon, st_term_list, queries)
+	data_r1 = query_process.report_1(s_lexicon, s_term_list, st_lexicon, st_term_list, queries, query_start)
 	query_process.print_results1(data_r1)
 
 	#have to clear the single index for memory reasons
@@ -62,7 +66,7 @@ if __name__ == "__main__":
 		elif indexType == 'positional':
 			po_term_list, po_lexicon, data_p1r1 = index.iterate_through_folder(in_path, input_files, (indexType + "_out_path"), (indexType + "_terms"), indexType, memory_constraint, data_p1r1)
 
-
-	index_count, data_r2 = query_process.report_2(st_lexicon, st_term_list, p_lexicon, p_term_list, po_lexicon, po_term_list, queries)
+	query_start = time.time()
+	index_count, data_r2 = query_process.report_2(st_lexicon, st_term_list, p_lexicon, p_term_list, po_lexicon, po_term_list, queries, query_start)
 	query_process.print_results2(data_r2, index_count)
 
