@@ -42,7 +42,7 @@ def report_1(s_lexicon, s_term_list, st_lexicon, st_term_list, queries, query_st
 				data_r1[processing_type]['S_QPT'] = str(query_end-query_start)
 			elif index_type == 'stem':
 				data_r1[processing_type]['ST_QPT'] = str(query_end-query_start)
-			status, output = commands.getstatusoutput("./trec_eval -m map ~/Documents/searchengine/qrel.txt ~/Documents/searchengine/results.txt")
+			status, output = commands.getstatusoutput("./trec_eval -m map qrel.txt results.txt")
 			if status == 0:
 				output = output.replace ('\t', ' ')
 				MAP_number = output.split('all ')[1]
@@ -99,7 +99,7 @@ def report_2(st_lexicon, st_term_list, p_lexicon, p_term_list, po_lexicon, po_te
 					resultsFile.write(queryID + ' ' + '0 ' + doc + ' ' + str(idx+1) + ' ' + str(sorted_scores[doc]) + ' ' + 'phrase_stem '  + '\n')
 	query_end = time.time()
 	data_r2['bm25']['P_QPT'] = str(query_end-query_start)
-	status, output = commands.getstatusoutput("./trec_eval -m map ~/Documents/searchengine/qrel.txt ~/Documents/searchengine/results.txt")
+	status, output = commands.getstatusoutput("./trec_eval -m map qrel.txt results.txt")
 	output = output.replace ('\t', ' ')
 	MAP_number = output.split('all ')[1]
 	data_r2['bm25']['P_MAP'] = MAP_number
