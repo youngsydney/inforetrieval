@@ -1,8 +1,7 @@
 READ_ME
 
-Project Part 1: Pre-Processing Documents & Building Inverted Index
 Sydney Young
-October 9, 2015
+November 13, 2015
 COSC 488: Introduction to Information Retrieval
 
 How to Run: 
@@ -20,4 +19,3 @@ Notes about processing:
 	For the phrase index, special cases get replaced with " STOP " so during the phrase identification stage the phrases can't cross over special cases.
 	For the cases of hyphenated words, I merged the word (black-tie became blacktime) and only stored the combined in the positional index. 
 
-	To Fix -- .., .,.0, 1$.4, 1$.6

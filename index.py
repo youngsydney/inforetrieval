@@ -4,11 +4,23 @@ import os
 import heapq
 import time
 import statistics
+from texttable import Texttable
 
 memory_constraint=0
 term_dict={}
 lexicon={}
 count=0
+
+def print_results(data_p1r1):
+	t_p1r1 = Texttable()
+	t_p1r1.add_row(['Index', 'Construction', '-', '-', '-', '-', '-', '-'])
+	t_p1r1.add_row(['Index Type', 'Lexicon #', 'Index Size', 'Max df', 'Min df', 'Mean df', 'Median df', 'Time'])
+	t_p1r1.add_row(['single', data_p1r1['single']['lexicon'], data_p1r1['single']['size'], data_p1r1['single']['max_df'], data_p1r1['single']['min_df'], data_p1r1['single']['mean_df'], data_p1r1['single']['median_df'], data_p1r1['single']['time']])
+	t_p1r1.add_row(['stem', data_p1r1['stem']['lexicon'], data_p1r1['stem']['size'], data_p1r1['stem']['max_df'], data_p1r1['stem']['min_df'], data_p1r1['stem']['mean_df'], data_p1r1['stem']['median_df'], data_p1r1['stem']['time']])
+	#t_p1r1.add_row(['phrase', data_p1r1['phrase']['lexicon'], data_p1r1['phrase']['size'], data_p1r1['phrase']['max_df'], data_p1r1['phrase']['min_df'], data_p1r1['phrase']['mean_df'], data_p1r1['phrase']['median_df'], data_p1r1['phrase']['time']])
+	#t_p1r1.add_row(['positional', data_p1r1['positional']['lexicon'], data_p1r1['positional']['size'], data_p1r1['positional']['max_df'], data_p1r1['positional']['min_df'], data_p1r1['positional']['mean_df'], data_p1r1['positional']['median_df'], data_p1r1['positional']['time']])
+	print t_p1r1.draw()
+	print "The phrase index and the positional index will be contructed after Report 1 is finished."
 
 
 def iterate_through_folder(folderPath, input_files, out_path, out_terms, indexType, memory, data_p1r1):

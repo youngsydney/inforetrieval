@@ -1,8 +1,118 @@
 import preprocess
 import math
+import time
+from collections import OrderedDict
+from operator import itemgetter
+import commands
+from texttable import Texttable
 
+def report_1(s_lexicon, s_term_list, st_lexicon, st_term_list, queries):
+	types = {'dirichlet', 'bm25', 'vsm'}
+	data_r1 = {'vsm':{'S_MAP':'', 'S_QPT': '', 'ST_MAP': '', 'ST_QPT': ''}, 'bm25':{'MAP':'', 'QPT': '', 'ST_MAP': '', 'ST_QPT': ''}, 'dirichlet':{'MAP':'', 'QPT': '', 'ST_MAP': '', 'ST_QPT': ''}}
+	report1_indexes = ['single', 'stem']
+
+	for index_type in report1_indexes:
+		for processing_type in types:
+			query_start = time.time()
+			with open("results.txt", 'w') as resultsFile:
+				for queryID in sorted(queries):
+					score = {}
+					query_terms = query_lexicon(queries[queryID], index_type)
+					if processing_type == 'vsm' and index_type == 'single':
+						score = VSM_Score(query_terms, s_lexicon, s_term_list)
+					elif processing_type == 'vsm' and index_type == 'stem':
+						score = VSM_Score(query_terms, st_lexicon, st_term_list)
+					elif processing_type == 'bm25' and index_type == 'single':
+						score = BM25_Score(query_terms, s_lexicon, s_term_list, queryID, score, 'single')
+					elif processing_type == 'bm25' and index_type == 'stem':
+						score = BM25_Score(query_terms, st_lexicon, st_term_list, queryID, score, 'stem')
+					elif processing_type == 'dirichlet' and index_type == 'single':
+						score = Dirichlet_Score(query_terms, s_lexicon)
+					elif processing_type == 'dirichlet' and index_type == 'stem':
+						score = Dirichlet_Score(query_terms, st_lexicon)
+					sorted_scores = OrderedDict(sorted(score.items(), key=itemgetter(1), reverse=True))
+					for idx, doc in enumerate(sorted_scores):
+						if idx<100:
+							resultsFile.write(queryID + ' ' + '0 ' + doc + ' ' + str(idx+1) + ' ' + str(sorted_scores[doc]) + ' ' + processing_type + '\n')
+			query_end = time.time()
+			if index_type == 'single':
+				data_r1[processing_type]['S_QPT'] = str(query_end-query_start)
+			elif index_type == 'stem':
+				data_r1[processing_type]['ST_QPT'] = str(query_end-query_start)
+			status, output = commands.getstatusoutput("./trec_eval -m map ~/Documents/searchengine/qrel.txt ~/Documents/searchengine/results.txt")
+			if status == 0:
+				output = output.replace ('\t', ' ')
+				MAP_number = output.split('all ')[1]
+				if index_type == 'single':
+					data_r1[processing_type]['S_MAP'] = MAP_number
+				elif index_type == 'stem':
+					data_r1[processing_type]['ST_MAP'] = MAP_number
+			else:
+				if index_type == 'single':
+					data_r1[processing_type]['S_MAP'] = "error"
+				elif index_type == 'stem':
+					data_r1[processing_type]['ST_MAP'] = "error"
+	return data_r1
+
+def print_results1(data_r1):
+	t_p2r1 = Texttable()
+	t_p2r1.add_row(['REPORT 1', '-', '-', '-', '-'])
+	t_p2r1.add_row(['-', 'SINGLE', '-', 'STEM', '-'])
+	t_p2r1.add_row(['Retrieval Model', 'MAP', 'Time', 'MAP', 'Time'])
+	t_p2r1.add_row(['vsm', data_r1['vsm']['S_MAP'], data_r1['vsm']['S_QPT'], data_r1['vsm']['ST_MAP'], data_r1['vsm']['ST_QPT']])
+	t_p2r1.add_row(['bm25', data_r1['bm25']['S_MAP'], data_r1['bm25']['S_QPT'], data_r1['bm25']['ST_MAP'], data_r1['bm25']['ST_QPT']])
+	t_p2r1.add_row(['dirichlet', data_r1['dirichlet']['S_MAP'], data_r1['dirichlet']['S_QPT'], data_r1['dirichlet']['ST_MAP'], data_r1['dirichlet']['ST_QPT']])
+	print t_p2r1.draw()
+
+def report_2(st_lexicon, st_term_list, p_lexicon, p_term_list, po_lexicon, po_term_list, queries):
+	data_r2 = {'bm25':{'P_MAP':'', 'P_QPT': ''}}
+	index_count = {'phrase': 0, 'positional': 0}
+
+	query_start = time.time()
+	with open("results.txt", 'w') as resultsFile:
+		for queryID in sorted(queries):
+			query_terms = query_lexicon(queries[queryID], 'phrase')
+			index_decision = makeDecision(query_terms, p_term_list)
+			index_count[index_decision] += 1
+
+			query_terms = query_lexicon(queries[queryID], index_decision)
+
+			score = {}
+			if index_decision == 'phrase':
+				score = BM25_Score(query_terms, p_lexicon, p_term_list, queryID, score, 'phrase')
+			elif index_decision == 'positonal':
+				score = BM25_Score(query_terms, po_lexicon, po_term_list, queryID, score, 'positional')
+			if len(score) < 99:
+				query_terms = query_lexicon(queries[queryID], 'stem')
+				score = BM25_Score(query_terms, st_lexicon, st_term_list, queryID, score, 'stem')
+			sorted_scores = OrderedDict(sorted(score.items(), key=itemgetter(1), reverse=True))
+			for idx, doc in enumerate(sorted_scores):
+				if idx<100:
+					resultsFile.write(queryID + ' ' + '0 ' + doc + ' ' + str(idx+1) + ' ' + str(sorted_scores[doc]) + ' ' + 'phrase_stem '  + '\n')
+			query_count += 1
+	query_end = time.time()
+	data_r2['bm25']['P_QPT'] = str(query_end-query_start)
+	status, output = commands.getstatusoutput("./trec_eval -m map ~/Documents/searchengine/qrel.txt ~/Documents/searchengine/results.txt")
+	output = output.replace ('\t', ' ')
+	MAP_number = output.split('all ')[1]
+	data_r2['bm25']['P_MAP'] = MAP_number
+	data_r2['bm25']['P_AQPT'] = (query_end-query_start) / query_count
+
+	return index_count, data_r2
+
+def print_results2(data_r2, index_count):
+	print ('\n'+str(index_count['phrase']) + " queries processed against phrase index.")
+	print (str(index_count['positional']) + " queries processed against positional index.")
+	t_p2r2 = Texttable()
+	t_p2r2.add_row(['REPORT 2', '-', '-'])
+	t_p2r2.add_row(['Retrieval Model', 'MAP', 'Total Time'])
+	t_p2r2.add_row(['bm25', data_r2['bm25']['P_MAP'], data_r2['bm25']['P_QPT']])
+	print t_p2r2.draw()
 
 def query_input(query_file):
+	"""This function reads the query file and stores the
+	different queries (title, desc, narrative)."""
+
 	queryID = 'EMPTY'
 	title = ''
 	desc = ''
@@ -47,7 +157,8 @@ def query_input(query_file):
 
 def read_queries(query_file):
 	"""This function reads the query file and 
-	stores the query idea and query as a dictionary."""
+	stores the query id and query as a dictionary."""
+
 	queryID='EMPTY'
 	query=""
 	queries={}
@@ -66,6 +177,9 @@ def read_queries(query_file):
 	return queries
 
 def query_lexicon(query, index_type):
+	"""This function builds an index of the
+	term weights for the query terms. """
+
 	terms = preprocess.processing(query, index_type)
 	query_terms = {}
 
@@ -94,6 +208,9 @@ def build_document_index(index):
 
 
 def makeDecision(query_terms, p_term_list):
+	"""This function decides whether to send a 
+	query to the phrase or positional index."""
+
 	index_decision = ''
 
 	sum_df = 0
@@ -117,9 +234,8 @@ def makeDecision(query_terms, p_term_list):
 	return index_decision 
 
 
+
 """THIS IS THE SECTION WHICH HANDLES QUERY PROCESSING FOR VSM COSINE"""
-
-
 
 def VSM_idf(term_list, num_docs):
 	"""This function precalculates all the term idfs."""
@@ -132,7 +248,9 @@ def VSM_idf(term_list, num_docs):
 
 
 def VSM_Score(query_terms, index, term_list):
-	#will be a dictionary of {docID:score, docID:score}
+	"""The main driver function for the VSM COSINE
+	retrieval model. Builds the dictionary of scores."""
+
 	vsm_score = {}
 	dict_term_weights = {}
 
@@ -164,13 +282,18 @@ def VSM_Score(query_terms, index, term_list):
 
 
 def VSM_termWeight_numerator(term_idf, termFreq):
-	"""This function calculates the term weight for a term in a document."""
+	"""This function calculates the numerator of the 
+	term weight for a term in a document."""
+
 	weight = 0
 	weight = (math.log(termFreq)+1)*term_idf
 
 	return weight
 
 def VSM_termWeight(docID, terms_idf, index, terms_in_docID, dict_term_weights):
+	"""This function calculates all the term weights for terms
+	in a specific document."""
+
 	sum_termWeights_docID = 0
 	for term in terms_in_docID:
 		if docID not in dict_term_weights:
@@ -185,6 +308,9 @@ def VSM_termWeight(docID, terms_idf, index, terms_in_docID, dict_term_weights):
 	return dict_term_weights
 
 def VSM_sum_termWeights_doc(dict_term_weights, docID):
+	"""This calculates the sum of the term
+	weights for a given document."""
+
 	sum_weights=0
 	for term in dict_term_weights[docID]:
 		sum_weights += dict_term_weights[docID][term]
@@ -266,7 +392,7 @@ def BM25_Score(query_terms, index, term_list, queryID, score, indexType):
 			query_term_posting_list = index[term]
 
 			for docID in query_term_posting_list:
-				A = ((k1 + 1) * len(index[term][docID])) / (len(index[term][docID]) + k1 * (1 - b + b * (document_lengths[docID] / average_length)))
+				A = ((k1 + 1) * index[term][docID]) / (index[term][docID] + k1 * (1 - b + b * (document_lengths[docID] / average_length)))
 				if docID not in score:
 					score[docID] = term_weight * A * B 
 				else:
@@ -292,7 +418,7 @@ def BM25_Score_Positional(query_terms, index, term_list, queryID, score):
 			query_term_posting_list = index[term]
 
 			for docID in query_term_posting_list:
-				A = ((k1 + 1) * index[term][docID]) / (index[term][docID] + k1 * (1 - b + b * (document_lengths[docID] / average_length)))
+				A = ((k1 + 1) * len(index[term][docID])) / (len(index[term][docID]) + k1 * (1 - b + b * (document_lengths[docID] / average_length)))
 				if docID not in score:
 					score[docID] = term_weight * A * B 
 				else:
