@@ -5,6 +5,7 @@ from collections import OrderedDict
 from operator import itemgetter
 import commands
 from texttable import Texttable
+import expansion
 
 def report_1(s_lexicon, s_term_list, st_lexicon, st_term_list, queries, query_start):
 	"""This report runs processing of the queries against the BM25, 
@@ -254,6 +255,9 @@ def VSM_Score(query_terms, index, term_list):
 
 	for docID in vsm_score:
 		vsm_score[docID] = vsm_score[docID] / math.sqrt(pow(VSM_sum_termWeights_doc(dict_term_weights, docID),2)*pow(VSM_sum_termWeights_query(query_termWeights), 2))
+
+	#testing remove this 11/16
+	expansion.relevance_feedback(vsm_score, terms_by_doc, index)
 
 	return vsm_score
 

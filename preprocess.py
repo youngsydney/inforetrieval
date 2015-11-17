@@ -61,6 +61,7 @@ def processing(document, indexType):
 	if indexType == 'positional':
 		return tokens
 	elif indexType == 'stem':
+		tokens = removeStop(tokens)
 		tokens = stem_terms(tokens)
 		return tokens
 	elif indexType == 'phrase':

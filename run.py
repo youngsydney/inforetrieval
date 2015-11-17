@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
 	data_r1 = query_process.report_1(s_lexicon, s_term_list, st_lexicon, st_term_list, queries, query_start)
 	query_process.print_results1(data_r1)
-
+"""
 	#have to clear the single index for memory reasons
 	s_lexicon.clear()
 	s_term_list.clear()
@@ -69,4 +69,4 @@ if __name__ == "__main__":
 	query_start = time.time()
 	index_count, data_r2 = query_process.report_2(st_lexicon, st_term_list, p_lexicon, p_term_list, po_lexicon, po_term_list, queries, query_start)
 	query_process.print_results2(data_r2, index_count)
-
+"""
