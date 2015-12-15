@@ -1,81 +1,72 @@
 import preprocess
+import output
 import math
 import time
+import re 
+import constant
 from collections import OrderedDict
 from operator import itemgetter
 import commands
 from texttable import Texttable
 import expansion
+import reduction
+
 
 def report_1(s_lexicon, s_term_list, st_lexicon, st_term_list, queries, query_start):
 	"""This report runs processing of the queries against the BM25, 
 	dirichlet, and VSM models."""
 
-	types = {'bm25', 'vsm', 'dirichlet'}
-	data_r1 = {'vsm':{'S_MAP':'', 'S_QPT': '', 'ST_MAP': '', 'ST_QPT': ''}, 'bm25':{'MAP':'', 'QPT': '', 'ST_MAP': '', 'ST_QPT': ''}, 'dirichlet':{'MAP':'', 'QPT': '', 'ST_MAP': '', 'ST_QPT': ''}}
-	report1_indexes = ['single', 'stem']
+	models = ['bm25', 'vsm', 'dirichlet']
+	indexes = ['single', 'stem']
+	data = {'vsm':{}, 'bm25':{}, 'dirichlet':{}}
 
-	for index_type in report1_indexes:
-		for processing_type in types:
+	for index in indexes:
+		for mdl in models:
 			query_start = time.time()
 			with open("results.txt", 'w') as resultsFile:
 				for queryID in sorted(queries):
 					score = {}
-					query_terms = query_lexicon(queries[queryID], index_type)
-					if processing_type == 'vsm' and index_type == 'single':
-						score = VSM_Score(query_terms, s_lexicon, s_term_list)
-					elif processing_type == 'vsm' and index_type == 'stem':
-						score = VSM_Score(query_terms, st_lexicon, st_term_list)
-					elif processing_type == 'bm25' and index_type == 'single':
-						score = BM25_Score(query_terms, s_lexicon, s_term_list, queryID, score, 'single')
-					elif processing_type == 'bm25' and index_type == 'stem':
-						score = BM25_Score(query_terms, st_lexicon, st_term_list, queryID, score, 'stem')
-					elif processing_type == 'dirichlet' and index_type == 'single':
-						score = Dirichlet_Score(query_terms, s_lexicon)
-					elif processing_type == 'dirichlet' and index_type == 'stem':
-						score = Dirichlet_Score(query_terms, st_lexicon)
+					query_terms = query_lexicon(queries[queryID], index)
+					if index == 'single':
+						score = Q_Score(mdl, query_terms, s_lexicon, s_term_list, queryID, score, index)
+					elif index == 'stem':
+						score = Q_Score(mdl, query_terms, st_lexicon, st_term_list, queryID, score, index)
 					sorted_scores = OrderedDict(sorted(score.items(), key=itemgetter(1), reverse=True))
 					for idx, doc in enumerate(sorted_scores):
 						if idx<100:
-							resultsFile.write(queryID + ' ' + '0 ' + doc + ' ' + str(idx+1) + ' ' + str(sorted_scores[doc]) + ' ' + processing_type + '\n')
+							resultsFile.write(queryID + ' ' + '0 ' + doc + ' ' + str(idx+1) + ' ' + str(sorted_scores[doc]) + ' ' + mdl + '\n')
 			query_end = time.time()
-			if index_type == 'single':
-				data_r1[processing_type]['S_QPT'] = str(query_end-query_start)
-			elif index_type == 'stem':
-				data_r1[processing_type]['ST_QPT'] = str(query_end-query_start)
-			status, output = commands.getstatusoutput("./trec_eval -m map qrel.txt results.txt")
+			data[mdl][(index + '_QPT')]=str(query_end-query_start)
+
+			status, output = commands.getstatusoutput("./trec_eval -m map  qrel.txt results.txt")
 			if status == 0:
-				output = output.replace ('\t', ' ')
-				MAP_number = output.split('all ')[1]
-				if index_type == 'single':
-					data_r1[processing_type]['S_MAP'] = MAP_number
-				elif index_type == 'stem':
-					data_r1[processing_type]['ST_MAP'] = MAP_number
+				output = output.replace('\t', ' ')
+				MAP = output.split('all ')[1]
+				data[mdl][(index + '_MAP')] = MAP
 			else:
-				if index_type == 'single':
-					data_r1[processing_type]['S_MAP'] = "error"
-				elif index_type == 'stem':
-					data_r1[processing_type]['ST_MAP'] = "error"
-		score.clear()
-	return data_r1
+				data[mdl][(index + '_MAP')] = 'error'
+			score.clear()
+	return data 
 
-def print_results1(data_r1):
-	"""This function prints the result of report 1 analysis."""
 
-	t_p2r1 = Texttable()
-	t_p2r1.add_row(['REPORT 1', '-', '-', '-', '-'])
-	t_p2r1.add_row(['-', 'SINGLE', '-', 'STEM', '-'])
-	t_p2r1.add_row(['Retrieval Model', 'MAP', 'Time', 'MAP', 'Time'])
-	t_p2r1.add_row(['vsm', data_r1['vsm']['S_MAP'], data_r1['vsm']['S_QPT'], data_r1['vsm']['ST_MAP'], data_r1['vsm']['ST_QPT']])
-	t_p2r1.add_row(['bm25', data_r1['bm25']['S_MAP'], data_r1['bm25']['S_QPT'], data_r1['bm25']['ST_MAP'], data_r1['bm25']['ST_QPT']])
-	t_p2r1.add_row(['dirichlet', data_r1['dirichlet']['S_MAP'], data_r1['dirichlet']['S_QPT'], data_r1['dirichlet']['ST_MAP'], data_r1['dirichlet']['ST_QPT']])
-	print t_p2r1.draw()
+def Q_Score(model, query_terms, lexicon, term_list, queryID, score, index_type):
+	"""This function is a helper to report 1(), it calls the correct 
+	model to process the query."""
+
+	if model == 'vsm':
+		score = VSM_Score(query_terms, lexicon, term_list)
+	elif model == 'bm25':
+		score = BM25_Score(query_terms, lexicon, term_list, queryID, score, index_type)
+	elif model == 'dirichlet':
+		score = Dirichlet_Score(query_terms, lexicon)
+	return score
+
 
 def report_2(st_lexicon, st_term_list, p_lexicon, p_term_list, po_lexicon, po_term_list, queries, query_start):
 	"""This report runs report 2 -- first sending against the phrase or positional index 
 	and then sending against the stem if not enough documents found."""
 
-	data_r2 = {'bm25':{'P_MAP':'', 'P_QPT': ''}}
+	data = {'MAP':'', 'QPT': ''}
 	index_count = {'phrase': 0, 'positional': 0}
 
 	with open("results.txt", 'w') as resultsFile:
@@ -91,85 +82,66 @@ def report_2(st_lexicon, st_term_list, p_lexicon, p_term_list, po_lexicon, po_te
 				score = BM25_Score(query_terms, p_lexicon, p_term_list, queryID, score, 'phrase')
 			elif index_decision == 'positonal':
 				score = BM25_Score(query_terms, po_lexicon, po_term_list, queryID, score, 'positional')
+
 			if len(score) < 99:
 				query_terms = query_lexicon(queries[queryID], 'stem')
 				score = BM25_Score(query_terms, st_lexicon, st_term_list, queryID, score, 'stem')
+
 			sorted_scores = OrderedDict(sorted(score.items(), key=itemgetter(1), reverse=True))
 			for idx, doc in enumerate(sorted_scores):
 				if idx<100:
 					resultsFile.write(queryID + ' ' + '0 ' + doc + ' ' + str(idx+1) + ' ' + str(sorted_scores[doc]) + ' ' + 'phrase_stem '  + '\n')
 	query_end = time.time()
-	data_r2['bm25']['P_QPT'] = str(query_end-query_start)
+	data['QPT'] = str(query_end-query_start)
+
 	status, output = commands.getstatusoutput("./trec_eval -m map qrel.txt results.txt")
 	output = output.replace ('\t', ' ')
-	MAP_number = output.split('all ')[1]
-	data_r2['bm25']['P_MAP'] = MAP_number
+	MAP = output.split('all ')[1]
+	data['MAP'] = MAP
 
-	return index_count, data_r2
+	return index_count, data
 
-def print_results2(data_r2, index_count):
-	"""This report prints the result of Report 2 processing."""
 
-	print ('\n'+str(index_count['phrase']) + " queries processed against phrase index.")
-	print (str(index_count['positional']) + " queries processed against positional index.")
-	t_p2r2 = Texttable()
-	t_p2r2.add_row(['REPORT 2', '-', '-'])
-	t_p2r2.add_row(['Retrieval Model', 'MAP', 'Total Time'])
-	t_p2r2.add_row(['bm25', data_r2['bm25']['P_MAP'], data_r2['bm25']['P_QPT']])
-	print t_p2r2.draw()
 
 def query_input(query_file):
 	"""This function reads the query file and stores the
 	different queries (title, desc, narrative)."""
 
-	queryID = 'EMPTY'
-	title = ''
-	desc = ''
-	narr = ''
-	nextLine = ''
-	add = ''
-	queries = {}
+	finalQueries = {}
 
 	with open(query_file, 'r') as queryFile:
-		for line in queryFile:
-			if queryID == 'EMPTY' and "<num>" in line:
-				queryID=line.replace('<num> Number: ', '')
-				queryID=queryID.replace('\n','')
-			elif title == '' and "<title>" in line:
-				title=line.replace('<title> Topic:', '')
-				title=title.replace('\n', '')
-			elif desc == '' and nextLine == '':
-				nextLine = 'desc'
-			elif nextLine == 'desc':
-				if "<narr>" in line:
-					nextLine = 'narr'
-				else:
-					add = line.replace('<desc> Description:', '')
-					add = add.replace('\n',' ')
-					desc += add
-					add = ''
-			elif nextLine == 'narr':
-				if "</top>" in line:
-					add = line.replace('\n',' ')
-					add = add.replace('</top>', ' ')
-					queries[queryID] = {"title":title, "desc":desc, "narr":narr}
-					queryID = 'EMPTY'
-					title = ''
-					desc = ''
-					narr = ''
-					nextLine = ''
-					add = ''
-				else:
-					add = line.replace('\n',' ')
-					narr += add
-					add = ''
-	return queries
+		wholeFile = queryFile.read()
+		wholeFile = wholeFile.replace('</top>', '</top> BREAK_NEW_QUERY')
+		queries = wholeFile.split('BREAK_NEW_QUERY')
+
+	for query in queries:
+		if "Number:" not in query:
+			break
+		query = query.replace('\n', ' ')
+		ID = re.search(constant.query_ID, query)
+		if ID:
+			queryID = ID.group(1)
+		t = re.search(constant.query_title, query)
+		if t:
+			title = t.group(1)
+		d = re.search(constant.query_desc, query)
+		if d:
+			desc = d.group(1)
+		n = re.search(constant.query_narr, query)
+		if n:
+			narr = n.group(1)
+		finalQueries[queryID] = {"title":title, "desc":desc, "narr":narr}
+	return finalQueries
+
 
 def query_lexicon(query, index_type):
 	"""This function builds an index of the
 	term weights for the query terms. """
 
-	terms = preprocess.processing(query, index_type)
+	if index_type != 'None':
+		terms = preprocess.processing(query, index_type)
+	else:
+		terms = query
 	query_terms = {}
 
 	for term in terms:
@@ -256,9 +228,6 @@ def VSM_Score(query_terms, index, term_list):
 	for docID in vsm_score:
 		vsm_score[docID] = vsm_score[docID] / math.sqrt(pow(VSM_sum_termWeights_doc(dict_term_weights, docID),2)*pow(VSM_sum_termWeights_query(query_termWeights), 2))
 
-	#testing remove this 11/16
-	expansion.relevance_feedback(vsm_score, terms_by_doc, index)
-
 	return vsm_score
 
 
@@ -281,6 +250,7 @@ def VSM_termWeight_numerator(term_idf, termFreq):
 
 	return weight
 
+
 def VSM_termWeight(docID, terms_idf, index, terms_in_docID, dict_term_weights):
 	"""This function calculates all the term weights for terms
 	in a specific document."""
@@ -298,6 +268,7 @@ def VSM_termWeight(docID, terms_idf, index, terms_in_docID, dict_term_weights):
 
 	return dict_term_weights
 
+
 def VSM_sum_termWeights_doc(dict_term_weights, docID):
 	"""This calculates the sum of the term
 	weights for a given document."""
@@ -308,6 +279,7 @@ def VSM_sum_termWeights_doc(dict_term_weights, docID):
 
 	return sum_weights
 
+
 def VSM_sum_termWeights_query(query_termWeights):
 	"""This is the sum of the term weights in the query."""
 
@@ -316,6 +288,7 @@ def VSM_sum_termWeights_query(query_termWeights):
 		sum_weights += query_termWeights[term]
 
 	return sum_weights
+
 
 def VSM_query_termWeight(terms_idf, index, query_terms):
 	"""This is the function that builds the term weights
@@ -335,7 +308,6 @@ def VSM_query_termWeight(terms_idf, index, query_terms):
 		dict_query_termWeights[term] = dict_query_termWeights[term] / sum_termWeights_query
 
 	return dict_query_termWeights
-
 
 
 
@@ -503,7 +475,124 @@ def build_tf_in_collection(index):
 
 
 
+"""THIS IS THE SECTION WHICH HANDLES QUERY PROCESSING with EXPANSION OR REDUCTION"""
 
+def assign_description(ty, data):
+	"""This assigns the description to the type to be used in the final output
+	for project 3."""
+
+	if ty == 'control_title':
+		data[ty]['explanation'] = 'Control -- processing with title queries'
+	elif ty == 'control_desc':
+		data[ty]['explanation'] = 'Control -- processing with description queries'
+	elif ty == 'control_narr':
+		data[ty]['explanation'] = 'Control -- processing with narr queries'
+	elif ty == 'RF_numDocs':
+		data[ty]['explanation'] = 'Expansion -- Top 2 Docs, Top 2 terms, chosen by idf * num docs'
+	elif ty == 'RF_freqT':
+		data[ty]['explanation'] = 'Expansion -- Top 4 Docs, Top 3 terms, chosen by tf in top docs * idf'
+	elif ty == 'exp_Thesaurus':
+		data[ty]['explanation'] = 'Expansion -- added 1 term from machine readable thesaurus'
+	elif ty == 'partial_Percent':
+		data[ty]['explanation'] = 'Reduction -- Partial query processing by selecting 72 percent of query terms, highest by idf * tf in query'
+	elif ty == 'partial_Number':
+		data[ty]['explanation'] = 'Reduction -- Partial query processing by selecting 16 query terms, highest by idf * tf in query'
+
+	return data
+
+
+def get_query(ty, queries, s_lexicon, s_term_list, queryID, score, index, terms_idf, terms_by_doc):
+	"""This function is used for query reduction and expansion in Project 3. It returns the query_terms according to the
+	type it is in charge of -- so involve relevance feedback, or partial processing, or jsut regular query term processing."""
+
+	queries_title = {}
+	queries_desc = {}
+	queries_narr = {}
+	score = {}
+
+	for ID in queries:
+		queries_title[ID] = queries[queryID]['title']
+		queries_desc[ID] = queries[queryID]['desc']
+		queries_narr[ID] = queries[queryID]['narr']
+
+	if ty == 'control_title':
+		new_query = queries_title[queryID]
+	elif ty == 'control_desc':
+		new_query = queries_desc[queryID]
+	elif ty == 'control_narr':
+		new_query = queries_narr[queryID]
+	elif ty == 'RF_numDocs':
+		query_terms = query_lexicon(queries_title[queryID], index)
+		score = send_to_SE('vsm', query_terms, s_lexicon, s_term_list, queryID, score, index)
+		new_query = expansion.RF_idf(score, terms_by_doc, terms_idf, query_terms, queries_title[queryID])
+	elif ty == 'RF_freqT':
+		query_terms = query_lexicon(queries_title[queryID], index)
+		score = send_to_SE('vsm', query_terms, s_lexicon, s_term_list, queryID, score, index)
+		new_query = expansion.RF_idf_tf(score, s_lexicon, terms_by_doc, terms_idf, query_terms, queries_title[queryID])
+	elif ty == 'exp_Thesaurus':
+		query_terms = query_lexicon(queries_title[queryID], index)
+		new_query = expansion.find_synonyms(query_terms, queries_title[queryID], terms_idf)
+	elif ty == 'partial_Percent':
+		query_terms = query_lexicon(queries_narr[queryID], index)
+		new_query = reduction.reduce_byIDF_percentage(terms_idf, query_terms)
+	elif ty == 'partial_Number':
+		query_terms = query_lexicon(queries_narr[queryID], index)
+		new_query = reduction.reduce_byIDF_number(terms_idf, query_terms)
+
+	return query_lexicon(new_query, index)
+
+
+def run_tests(s_lexicon, s_term_list, queries):
+	"""This report runs processing of the queries comparing expansion and 
+	reduction techniques. It runs against the VSM model."""
+
+	indexes = ['single']
+	types = ['control_title', 'control_desc', 'control_narr', 'RF_numDocs', 'RF_freqT', 'exp_Thesaurus', 'partial_Percent', 'partial_Number']
+	data = {'control_title': {}, 'control_desc': {}, 'control_narr': {}, 'RF_numDocs': {}, 'RF_freqT': {}, 'exp_Thesaurus': {}, 'partial_Percent': {}, 'partial_Number': {}}
+	measures = {'map', 'num_rel_ret', 'Rprec', 'P'}
+	count = 1
+
+	for index in indexes:
+		if index == 'single':
+			terms_by_doc, num_docs = build_document_index(s_lexicon)
+			terms_idf = VSM_idf(s_term_list, num_docs)
+		for ty in types:
+			query_start = time.time()
+			data = assign_description(ty, data)
+			with open("results.txt", 'w') as resultsFile:
+				for queryID in sorted(queries):
+					score = {}
+					query_terms = get_query(ty, queries, s_lexicon, s_term_list, queryID, score, index, terms_idf, terms_by_doc)
+					score = send_to_SE('vsm', query_terms, s_lexicon, s_term_list, queryID, score, index)
+
+					sorted_scores = OrderedDict(sorted(score.items(), key=itemgetter(1), reverse=True))
+					for idx, doc in enumerate(sorted_scores):
+						if idx<100:
+							resultsFile.write(queryID + ' ' + '0 ' + doc + ' ' + str(idx+1) + ' ' + str(sorted_scores[doc]) + ' ' + 'vsm' + '\n')
+			query_end = time.time()
+			data[ty][(index + '_QPT')]=str(query_end-query_start)
+
+			for m in measures:
+				status, output = commands.getstatusoutput(('./trec_eval -m  ' + m + ' qrel.txt results.txt'))
+				if status == 0:
+					output = output.replace('\t', ' ')
+					if m == 'P':
+						output = output.split('\nP_10')[0]
+					result = output.split('all ')[1]
+					data[ty][(index + '_' + m)] = result
+				else:
+					data[ty][(index + '_' + m)] = 'error'
+			score.clear()
+			print (str(count) + " out of 8 tests completed.")
+			count += 1
+	return data 
+
+
+def send_to_SE(mdl, query_terms, s_lexicon, s_term_list, queryID, score, index):
+	"""This report handles sending queries to the search engine depending on the index type."""
+
+	score = Q_Score(mdl, query_terms, s_lexicon, s_term_list, queryID, score, index)
+	return score
 
 
 

@@ -1,4 +1,6 @@
 import preprocess
+import constant
+import re
 import tempfile
 import os
 import heapq
@@ -11,19 +13,8 @@ term_dict={}
 lexicon={}
 count=0
 
-def print_results(data_p1r1):
-	t_p1r1 = Texttable()
-	t_p1r1.add_row(['Index', 'Construction', '-', '-', '-', '-', '-', '-'])
-	t_p1r1.add_row(['Index Type', 'Lexicon #', 'Index Size', 'Max df', 'Min df', 'Mean df', 'Median df', 'Time'])
-	t_p1r1.add_row(['single', data_p1r1['single']['lexicon'], data_p1r1['single']['size'], data_p1r1['single']['max_df'], data_p1r1['single']['min_df'], data_p1r1['single']['mean_df'], data_p1r1['single']['median_df'], data_p1r1['single']['time']])
-	t_p1r1.add_row(['stem', data_p1r1['stem']['lexicon'], data_p1r1['stem']['size'], data_p1r1['stem']['max_df'], data_p1r1['stem']['min_df'], data_p1r1['stem']['mean_df'], data_p1r1['stem']['median_df'], data_p1r1['stem']['time']])
-	#t_p1r1.add_row(['phrase', data_p1r1['phrase']['lexicon'], data_p1r1['phrase']['size'], data_p1r1['phrase']['max_df'], data_p1r1['phrase']['min_df'], data_p1r1['phrase']['mean_df'], data_p1r1['phrase']['median_df'], data_p1r1['phrase']['time']])
-	#t_p1r1.add_row(['positional', data_p1r1['positional']['lexicon'], data_p1r1['positional']['size'], data_p1r1['positional']['max_df'], data_p1r1['positional']['min_df'], data_p1r1['positional']['mean_df'], data_p1r1['positional']['median_df'], data_p1r1['positional']['time']])
-	print t_p1r1.draw()
-	print "The phrase index and the positional index will be contructed after Report 1 is finished."
 
-
-def iterate_through_folder(folderPath, input_files, out_path, out_terms, indexType, memory, data_p1r1):
+def iterate_through_folder(folderPath, input_files, out_path, out_terms, indexType, memory, data_p1r1, data_time):
 	"""This method iterates through the files in the folder, sends them
 	to the document iterator, and then handles the final temp writing and merging."""
 
@@ -60,13 +51,22 @@ def iterate_through_folder(folderPath, input_files, out_path, out_terms, indexTy
 
 	end_time=time.time()
 
-	numT, maxT,minT,meanT, medianT = calculate_term_list()
-	data_p1r1[indexType] = {'lexicon': numT, 'size': 0, 'max_df': maxT, 'min_df': minT, 'mean_df': meanT, 'median_df': medianT, 'time': (end_time-start_time)}
+	numT, maxT,minT,meanT, medianT, size = calculate_term_list(indexType)
+	data_p1r1[indexType] = {'lexicon': numT, 'size': size, 'max_df': maxT, 'min_df': minT, 'mean_df': meanT, 'median_df': medianT, 'time': (end_time-start_time)}
+	if merge_time != 0:
+		data_time[indexType] = {'temp':str(merge_time - start_time), 'merge':str(end_time - merge_time), 'total':str(end_time - start_time)}
 
 	if memory_constraint == 0:
-		return term_dict, lexicon, data_p1r1
-	else:
 		write_term_list(out_terms)
+		if indexType == 'positional':
+			write_to_file_position(out_path)
+		else:
+			write_to_file(out_path)
+	else:
+		output.merge_time_results()
+		write_term_list(out_terms)
+
+	return data_p1r1, data_time
 
 
 def iterate_through_files(temp_files, folder, singleFile, indexType):
@@ -77,62 +77,24 @@ def iterate_through_files(temp_files, folder, singleFile, indexType):
 	doc_collection = preprocess.read_collection(folder+singleFile)
 	for document in doc_collection:
 		docID = preprocess.get_docID(document)
-		if indexType == 'single':
-			temp_files = build_single_index(temp_files, document, docID)
-		elif indexType == 'phrase':
-			temp_files = build_phrase_index(temp_files, document, docID)
-		elif indexType == 'stem':
-			temp_files = build_stem_index(temp_files, document, docID)
-		elif indexType == 'positional':
-			temp_files = build_positional_index(temp_files, document, docID)
+		temp_files = build_index(temp_files, document, docID, indexType)
 	return temp_files
 
 
-def build_single_index(temp_files, document, docID):
-	"""This method controls the processing of a document and the adding of the terms
-	to the single index."""
-	terms = preprocess.processing(document, 'single')
-	append_to_index(terms, docID)
-	temp_files = check_mem_constraint(temp_files)
+def build_index(temp_files, document, docID, indexType):
+	"""This method controls the processing of a document and then 
+	adding of the terms to the single, stem, or phrase index."""
+
+	terms = preprocess.processing(document, indexType)
+	if indexType == 'positional':
+		append_to_index_position(terms, docID)
+	else:
+		append_to_index(terms, docID)
+	temp_files = check_mem_constraint(temp_files, indexType)
 	return temp_files
 
 
-def build_stem_index(temp_files, document, docID):
-	"""This method controls the processing of a document and the adding 
-	of the terms to the stem index."""
-
-	stems = preprocess.processing(document, 'stem')
-	append_to_index(stems, docID)
-	temp_files = check_mem_constraint(temp_files)
-	return temp_files
-
-
-def build_phrase_index(temp_files, document, docID):
-	"""This method controls the processing of a document and the adding
-	of the terms to the phrase index."""
-
-	phrases = preprocess.processing(document, 'phrase')
-	append_to_index(phrases, docID)
-	temp_files = check_mem_constraint(temp_files)
-	return temp_files
-
-
-def build_positional_index(temp_files, document, docID):
-	"""This method controls the processing of a document and the adding
-	of the terms to the phrase index."""
-
-	tokens = preprocess.processing(document, 'positional')
-	append_to_index_position(tokens, docID)
-	
-	global count
-	global memory_constraint
-
-	if count > memory_constraint and memory_constraint != 0:
-		temp_files = write_to_temp_position(temp_files)
-		count = 0
-	return temp_files
-
-def check_mem_constraint(temp_files):
+def check_mem_constraint(temp_files, indexType):
 	"""This method checks if the memory has reached the constraint, if it has
 	then the method calls write_to_temp to write to disk memory."""
 
@@ -140,7 +102,10 @@ def check_mem_constraint(temp_files):
 	global memory_constraint
 
 	if count > memory_constraint and memory_constraint != 0:
-		temp_files = write_to_temp(temp_files)
+		if indexType == 'positional':
+			temp_files = write_to_temp_position(temp_files)
+		else:
+			temp_files = write_to_temp(temp_files)
 		count = 0
 	return temp_files
 
@@ -154,6 +119,7 @@ def append_to_index(terms, docID):
 		add_to_index(term, docID)
 		count += 1
 
+
 def append_to_index_position(terms, docID):
 	""""This method iterates through the terms and sends each
 	key to be added to the POSITIONAL index."""
@@ -164,6 +130,7 @@ def append_to_index_position(terms, docID):
 	for idx, token in enumerate(terms):
 		add_to_index_position(token, idx, docID)
 		count += 1
+
 
 def add_to_index(term, docID):
 	"""This method checks if the term is already in the term list
@@ -289,22 +256,25 @@ def write_to_file_position(out_file):
 		for term in sorted(lexicon.keys()):
 			outFile.write('<' + term + '> ')
 			for docID in lexicon[term]:
-				outFile.write(docID + ' ')
-				outFile.write(str(lexicon[term][docID]))
-				outFile.write(' | ')
+				outFile.write((docID + str(lexicon[term][docID]) + ' | '))
 			outFile.write('\n')
 		lexicon = {}
 		count = 0
 
 
-def calculate_term_list():
+def calculate_term_list(indexType):
+	"""This calculates statistics concerning the 
+	term list for an index."""
+
 	num_of_terms = len(term_dict)
 	max_df = max(term_dict.values())
 	min_df = min(term_dict.values())
 	mean_df = statistics.mean(term_dict.values())
 	median_df = statistics.median(term_dict.values())
+	size = os.path.getsize(indexType + '_out_path')
 
-	return num_of_terms, max_df, min_df, mean_df, median_df
+	return num_of_terms, max_df, min_df, mean_df, median_df, size
+
 
 def write_term_list(out_file):
 	"""This method writes the term list containing all the 
@@ -326,6 +296,7 @@ def decorated_file(t_file, key):
 
 def key_func(line):
 	"""Helper for merge."""
+
 	line = line.replace('\n', '')
 	return line.split('>', 2)
 
@@ -333,6 +304,7 @@ def key_func(line):
 def grouper(sequence, size):
 	"""Taken from http://stackoverflow.com/questions/434287/what-is-the-most-pythonic-way-to-iterate-over-a-list-in-chunks
 	Returns a list broken in to items as specified by size. Using in this program to step by step merge."""
+
 	return (sequence[pos:pos + size] for pos in xrange(0, len(sequence), size))
 
 
@@ -392,25 +364,95 @@ def merge_temps(temp_files, out_path, keyfunc=key_func):
 	del temp_files
 
 
-def time_results(start_time, merge_time, end_time, numT, maxT,minT,meanT, medianT, indexType):
-	"""This method prints the execution time results to the user."""
+def read_term_list(term_list_file):
+	"""This function reads in a term list from a file
+	back into memory."""
 
-	if indexType == 'single':
-		print ("\nSINGLE INDEX")
-	elif indexType == 'stem':
-		print ("\nSTEM INDEX")
-	elif indexType == 'phrase':
-		print ("\nPHRASE INDEX")
-	elif indexType == 'positional':
-		print ("\nPOSITIONAL INDEX")
+	term_list = {}
+	with open(term_list_file, 'r') as inFile:
+		for line in inFile:
+			term = (re.search(constant.read_in_term, line)).group(0)
+			term = term.replace('<', '')
+			term = term.replace('>', '')
 
-	print ("Execution Time Total: " + str(end_time - start_time))
-	if merge_time != 0:
-		print ("Time to Temp File Creation: " + str(merge_time - start_time))
-		print ("Time to Merge Temp Files: " + str(end_time - merge_time))
+			df = (re.search(constant.read_in_df, line)).group(0)
+			df = int(df.replace('> ', ''))
 
-	print ("Terms in lexicon: " + str(numT))
-	print ("Max df: " + str(maxT))
-	print ("Min df: " + str(minT))
-	print ("Mean df: " + str(meanT))
-	print ("Median df: " + str(medianT))
+			term_list[term] = df
+	return term_list
+
+
+def read_lexicon(lexicon_file):
+	"""This function reads a lexicon and posting 
+	list from a file back into memory."""
+
+	lexicon = {}
+	with open(lexicon_file, 'r') as inFile:
+		for line in inFile:
+			term = (re.search(constant.read_in_term, line)).group(0)
+			term = term.replace('<', '')
+			term = term.replace('>', '')
+			while ',' in line:
+				doc_block = (re.search(constant.doc_tf, line)).group(0)
+				line = line.replace((doc_block+' | '), '')
+				docID = doc_block.split(',')[0]
+				if ' ' in docID:
+					docID == docID.replace(' ', '')
+				tf = int(doc_block.split(',')[1])
+				if term in lexicon:
+					lexicon[term][docID] = tf
+				else:
+					lexicon[term] = {docID:tf}
+
+	return lexicon
+
+
+def read_lexicon_positional(lexicon_file):
+	"""This function reads a positional lexicon and posting
+	list from a file back into memory."""
+
+	lexicon = {}
+	with open(lexicon_file, 'r') as inFile:
+		for line in inFile:
+			term = (re.search(constant.read_in_term, line)).group(0)
+			term = term.replace('<', '')
+			term = term.replace('>', '')
+
+			while '|' in line:
+				obj = re.search(constant.positional, line)
+				if obj == None:
+					obj = re.search(constant.positional_single, line)
+				doc_block = obj.group(0)
+
+				line = line.replace((doc_block+' | '), '')
+				docID = doc_block.split('[')[0]
+
+				pos_list_str = doc_block.split('[')[1]
+				pos_list_str = pos_list_str.replace(']','')
+
+				pos_list = pos_list_str.split(',')
+				for idx, num in enumerate(pos_list):
+					num = num.replace(' ', '')
+					num = int(num)
+					pos_list[idx] = num
+
+				if term in lexicon:
+					lexicon[term][docID] = pos_list
+				else:
+					lexicon[term] = {docID:pos_list}
+	return lexicon
+		
+
+def read_in_file(term_list_file, lexicon_file, index_type):
+	"""This controls reading in the term list and the 
+	lexicon for a particular index."""
+
+	term_list = read_term_list(term_list_file)
+	if index_type != 'positional':
+		lexicon = read_lexicon(lexicon_file)
+	else:
+		lexicon = read_lexicon_positional(lexicon_file)
+
+	return term_list, lexicon
+
+

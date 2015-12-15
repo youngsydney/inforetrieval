@@ -1,8 +1,8 @@
-import myHTMLParser
+import index
 import constant
+import myHTMLParser
 import re
 from datetime import datetime
-import index
 import nltk
 from nltk.stem import PorterStemmer
 
@@ -367,6 +367,9 @@ def stem_terms(tokens):
 
 
 def build_phrases(tokens):
+	"""This function iterates through the tokens
+	to build a list of the 2-word and 3-word phrases."""
+
 	stopWords = make_list_stops()
 	special_case = 'STOP'
 	string_2 = ''

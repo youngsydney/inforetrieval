@@ -53,3 +53,26 @@ percentage='[%](\D)'
 
 start_of_heading='\x01'
 
+read_in_term = '[<](.+)[>]'
+
+read_in_df = '[>][ ]([0-9]+)'
+
+doc_tf = '([F].{15})[,]([0-9]+)'
+
+positional = '([F].{15})[\[](\d+[,]\s)+(\d+)[\]]'
+#([0-9]+[,])+([0-9]+)
+
+positional_single = '([F].{15})[\[]([0-9]+)[\]]'
+
+query_ID = 'Number: (.*?) <title>'
+
+query_title = 'Topic: (.*?)<desc>'
+
+query_desc = 'Description: (.*?)<narr>'
+
+query_narr = 'Narrative: (.*?)</top>'
+
+
+
+
+
