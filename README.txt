@@ -14,15 +14,15 @@ How to Run:
 
 	Second, the program will ask the user what type of query processing they would like to perform. Enter P for Project 2
 	reporting and a comparison of BM25, VSM, and Dirichlet. Enter C for Project 3 and a comparison of query reduction
-	and expansion techniques. Enter Q when you are prepared to quit the progam.
+	and expansion techniques. Enter Q when you are prepared to quit the program.
 
-	If the user selects P (Project 3 Option) the program will run 8 tests and output the results in two tables. 
-	The first table contains the results of query expansion and reduction as run against the single index. The second
-	table contains the results of the query expansion and reduction as run against the stem index. 
+	If the user selects P (Project 3 Option) the program will run 8 tests and output the results in one table. 
+	The table contains the results of query expansion and reduction as run against the single index. It includes the following
+	evaluation measures: MAP, Rel. Ret. P@5, RPRec, and Time.  
 
 *** NOTE 1 *** Please be aware that the library used as a Thesaurus, PyDictionary, is a subset of Beautiful Soup. Beautiful Soup has been 
-printing a warning when running concerning the html parser used. Should you see this warning, please ignore it as well as the output when 
-certain terms do not have a synonym in the API. 
+printing a warning when running concerning the html parser used. This warning does not interfere with the functionality of the engine.
+Should you see this warning, please ignore it as well as the output when certain terms do not have a synonym in the API. 
 
 *** NOTE 2 *** The trec_eval executable is currently compiled for a Mac machine. If this is not correct for your system, 
 you will need to download the trec_eval source code, make it, and then add the executable to this folder. 
